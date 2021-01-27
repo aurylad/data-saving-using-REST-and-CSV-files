@@ -30,7 +30,7 @@ public class CsvReader {
 	public Map<String, AntiqueBook> readAntiqueBooksCsvFile() throws IOException {
 		Map<String, AntiqueBook> booksMap = openCsvToBean(AntiqueBook.class, "antiquebooks.csv").parse().stream()
 			      .collect(Collectors.toMap(AntiqueBook::getBarcode, antiqueBook -> antiqueBook));
-		
+
 		return booksMap;
 	}
 	

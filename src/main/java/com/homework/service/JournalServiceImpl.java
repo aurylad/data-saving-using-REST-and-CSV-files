@@ -3,136 +3,148 @@ package com.homework.service;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
+import com.homework.dao.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
-import com.homework.dao.CsvReader;
-import com.homework.dao.CsvWriter;
-import com.homework.dao.Journal;
 import com.opencsv.exceptions.CsvDataTypeMismatchException;
 import com.opencsv.exceptions.CsvRequiredFieldEmptyException;
 
 @Service
-public class JournalServiceImpl implements JournalService {
+public class JournalServiceImpl implements BooksService {
 
-	private CsvWriter csvWriter;
-	private CsvReader csvReader;
+    private CsvWriter csvWriter;
+    private CsvReader csvReader;
 
-	@Autowired
-	BarcodeService barcodeService;
+    @Autowired
+    BarcodeService barcodeService;
 
-	@Override
-	public ResponseEntity<Object> createJournal(Journal journal) {
-		final Map<String, Journal> journalRepo = retrieveJournals();
+    @Override
+    public ResponseEntity<Object> createBook(Book book) {
+        Journal journal = (Journal) book;
+        final Map<String, Journal> journalRepo = retrieveJournals();
 
-		if (barcodeService.ifBarcodeExist(journal.getBarcode())) {
-			return new ResponseEntity<>("The record already exists", HttpStatus.CONFLICT);
-		} else if (journal.getBarcode().trim().isEmpty()) {
-			return new ResponseEntity<>("The barcode cannot be empty", HttpStatus.BAD_REQUEST);
-		}
+        Optional<Barcode> barcodeOptional = Optional.ofNullable(barcodeService.getBarcode(book.getBarcode()));
 
-		// Science Index should be from 1 to 10, it is checked in journal dao
-		// using Hibernate validators @Max and @Min
-		
-		journal.setPricePerUnit(journal.getPricePerUnit().setScale(2, RoundingMode.HALF_EVEN));
-		journalRepo.put(journal.getBarcode(), journal);
+        if (barcodeOptional.isPresent()) {
+            return new ResponseEntity<>("The record already exists", HttpStatus.CONFLICT);
+        } else if (journal.getBarcode().trim().isEmpty()) {
+            return new ResponseEntity<>("The barcode cannot be empty", HttpStatus.BAD_REQUEST);
+        }
 
-		barcodeService.createBarcode(journal.getBarcode(), journal.getClass().getSimpleName());
-		writeJournals(journalRepo);
+        // Science Index should be from 1 to 10, it is checked in journal dao
+        // using Hibernate validators @Max and @Min in the entity class
 
-		return ResponseEntity.ok().build();
-	}
+        journal.setPricePerUnit(journal.getPricePerUnit().setScale(2, RoundingMode.HALF_EVEN));
+        journalRepo.put(journal.getBarcode(), journal);
 
-	@Override
-	public Collection<Journal> getJournals() {
-		return retrieveJournals().values();
-	}
+        barcodeService.createBarcode(journal.getBarcode(), journal.getClass().getSimpleName());
+        writeJournals(journalRepo);
 
-	@Override
-	public Journal getJournalByBarcode(String barcode) {
-		return retrieveJournals().get(barcode);
-	}
+        return ResponseEntity.ok().build();
+    }
 
-	@Override
-	public ResponseEntity<Void> updateJournal(String barcode, Journal journal) {
-		final Map<String, Journal> journalRepo = retrieveJournals();
+    @Override
+    public Collection<Book> getBooks() {
+        final List<Book> list = new ArrayList<>();
 
-		if (journalRepo.get(barcode) == null) {
-			return ResponseEntity.badRequest().build();
-		}
+        for (final Journal src : retrieveJournals().values()) {
+            list.add(src);
+        }
 
-		journal.setPricePerUnit(journal.getPricePerUnit().setScale(2, RoundingMode.HALF_EVEN));
-		journal.setBarcode(barcode);
-		journalRepo.replace(barcode, journal);
-		writeJournals(journalRepo);
+        return list;
+    }
 
-		return ResponseEntity.ok().build();
-	}
+    @Override
+    public Journal getByBarcode(String barcode) {
 
-	@Override
-	public ResponseEntity<Void> deleteJournal(String barcode) {
-		final Map<String, Journal> journalRepo = retrieveJournals();
+        return retrieveJournals().get(barcode);
+    }
 
-		if (journalRepo.get(barcode) == null) {
-			return ResponseEntity.badRequest().build();
-		}
+    @Override
+    public ResponseEntity<Object> updateBook(String barcode, Book book) {
+        Journal journal = (Journal) book;
+        final Map<String, Journal> journalRepo = retrieveJournals();
 
-		journalRepo.remove(barcode);
-		barcodeService.deleteBarcode(barcode);
-		writeJournals(journalRepo);
+        Optional<Barcode> barcodeOptional = Optional.ofNullable(barcodeService.getBarcode(book.getBarcode()));
 
-		return ResponseEntity.ok().build();
-	}
+        if (barcodeOptional.isEmpty()) {
+            return ResponseEntity.badRequest().build();
+        }
 
-	@Override
-	public ResponseEntity<BigDecimal> calculatePrice(String barcode) {
-		Journal journal = getJournalByBarcode(barcode);
+        journal.setPricePerUnit(journal.getPricePerUnit().setScale(2, RoundingMode.HALF_EVEN));
+        journal.setBarcode(barcode);
+        journalRepo.replace(barcode, journal);
+        writeJournals(journalRepo);
 
-		if (journal == null) {
-			return ResponseEntity.badRequest().build();
-		}
+        return ResponseEntity.ok().build();
+    }
 
-		BigDecimal unitPrice = journal.getPricePerUnit();
-		int quantity = journal.getQuantity();
-		int scienceIndex = journal.getScienceIndex();
+    @Override
+    public ResponseEntity<Void> deleteBook(String barcode) {
+        final Map<String, Journal> journalRepo = retrieveJournals();
 
-		// Total Price = Quantity * Price * Science Index.
+        Optional<Barcode> barcodeOptional = Optional.ofNullable(barcodeService.getBarcode(barcode));
 
-		BigDecimal totalPrice = unitPrice.multiply(new BigDecimal(quantity)).multiply(new BigDecimal(scienceIndex));
+        if (barcodeOptional.isEmpty()) {
+            return ResponseEntity.badRequest().build();
+        }
 
-		return ResponseEntity.ok(totalPrice);
-	}
+        journalRepo.remove(barcode);
+        barcodeService.deleteBarcode(barcode);
+        writeJournals(journalRepo);
+        return ResponseEntity.ok().build();
+//
+    }
 
-	// Retrieve from csv
-	private Map<String, Journal> retrieveJournals() {
-		csvReader = new CsvReader();
-		Map<String, Journal> journalRepo = new HashMap<>();
-		try {
-			journalRepo = csvReader.readJournalsCsvFile();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-		return journalRepo;
-	}
+    @Override
+    public ResponseEntity<BigDecimal> calculatePrice(String barcode) {
+        Optional<Journal> journalOptional = Optional.ofNullable(getByBarcode(barcode));
 
-	// Write to csv
-	private void writeJournals(Map<String, Journal> journalsToSave) {
-		csvWriter = new CsvWriter();
-		try {
-			csvWriter.writeToCsvJournals(journalsToSave);
-		} catch (CsvDataTypeMismatchException e) {
-			e.printStackTrace();
-		} catch (CsvRequiredFieldEmptyException e) {
-			e.printStackTrace();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-	}
+        if (journalOptional.isEmpty()) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        BigDecimal unitPrice = journalOptional.get().getPricePerUnit();
+        int quantity = journalOptional.get().getQuantity();
+        int scienceIndex = journalOptional.get().getScienceIndex();
+
+        // Total Price = Quantity * Price * Science Index.
+
+        BigDecimal totalPrice = unitPrice.multiply(new BigDecimal(quantity)).multiply(new BigDecimal(scienceIndex));
+
+        return ResponseEntity.ok(totalPrice);
+    }
+
+    // Retrieve from csv
+    private Map<String, Journal> retrieveJournals() {
+        csvReader = new CsvReader();
+        Map<String, Journal> journalRepo = new HashMap<>();
+        try {
+            journalRepo = csvReader.readJournalsCsvFile();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return journalRepo;
+    }
+
+    // Write to csv
+    private void writeJournals(Map<String, Journal> journalsToSave) {
+        csvWriter = new CsvWriter();
+        try {
+            csvWriter.writeToCsvJournals(journalsToSave);
+        } catch (CsvDataTypeMismatchException e) {
+            e.printStackTrace();
+        } catch (CsvRequiredFieldEmptyException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
 
 }
