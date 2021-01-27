@@ -34,23 +34,17 @@ public class BarcodeServiceImp implements BarcodeService {
 	public Map<String, Barcode> getBarcodes() {
 		return retrieveBarcodes();
 	}
-	
+
+	@Override
+	public Barcode getBarcode(String barcode) {
+		return retrieveBarcodes().get(barcode);
+	}
+
 	@Override
 	public void deleteBarcode(String barcode) {
 		final Map<String, Barcode> barcodeRepo = retrieveBarcodes();
 		barcodeRepo.remove(barcode);
 		writeBarcodes(barcodeRepo);	
-	}
-
-	// Used before saving each book to a file.
-	@Override
-	public boolean ifBarcodeExist(String barcode) {
-		final Map<String, Barcode> barcodeRepo = retrieveBarcodes();
-		if (barcodeRepo.get(barcode) != null) {
-			return true;
-		} else {
-			return false;			
-		}
 	}
 	
 	// Write to csv

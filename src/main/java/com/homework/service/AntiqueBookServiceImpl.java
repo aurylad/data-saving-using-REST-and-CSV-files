@@ -5,148 +5,158 @@ import static com.homework.service.Constans.*;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.Calendar;
-import java.util.Collection;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
+import com.homework.dao.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
-import com.homework.dao.AntiqueBook;
-import com.homework.dao.CsvReader;
-import com.homework.dao.CsvWriter;
 import com.opencsv.exceptions.CsvDataTypeMismatchException;
 import com.opencsv.exceptions.CsvRequiredFieldEmptyException;
 
 @Service
-public class AntiqueBookServiceImpl implements AntiqueBookService {
+public class AntiqueBookServiceImpl implements BooksService {
 
-	private CsvWriter csvWriter;
-	private CsvReader csvReader;
+    private CsvWriter csvWriter;
+    private CsvReader csvReader;
 
-	@Autowired
-	BarcodeService barcodeService;
+    @Autowired
+    BarcodeService barcodeService;
 
-	@Override
-	public ResponseEntity<Object> createAntiqueBook(AntiqueBook antiqueBook) {
-		final Map<String, AntiqueBook> antiqueRepo = retrieveAntiqueBooks();
+    @Override
+    public ResponseEntity<Object> createBook(Book book) {
+        AntiqueBook antiqueBook = (AntiqueBook) book;
+        final Map<String, AntiqueBook> antiqueRepo = retrieveAntiqueBooks();
 
-		if (barcodeService.ifBarcodeExist(antiqueBook.getBarcode())) {
-			return new ResponseEntity<>("The record already exists", HttpStatus.CONFLICT);
-		} else if (antiqueBook.getBarcode().trim().isEmpty()) {
-			return new ResponseEntity<>("The barcode cannot be empty", HttpStatus.BAD_REQUEST);
-		} else if (getYearFromDate(antiqueBook.getReleaseYear()) > RELEASE_YEAR_LIMIT) {
-			return new ResponseEntity<>("No more recent than 1900", HttpStatus.BAD_REQUEST);
-		}
+        Optional<Barcode> barcodeOptional = Optional.ofNullable(barcodeService.getBarcode(book.getBarcode()));
 
-		antiqueBook.setPricePerUnit(antiqueBook.getPricePerUnit().setScale(2, RoundingMode.HALF_EVEN));
-		antiqueRepo.put(antiqueBook.getBarcode(), antiqueBook);
+        if (barcodeOptional.isPresent()) {
+            return new ResponseEntity<>("The record already exists", HttpStatus.CONFLICT);
+        } else if (antiqueBook.getBarcode().trim().isEmpty()) {
+            return new ResponseEntity<>("The barcode cannot be empty", HttpStatus.BAD_REQUEST);
+        } else if (getYearFromDate(antiqueBook.getReleaseYear()) > RELEASE_YEAR_LIMIT) {
+            return new ResponseEntity<>("No more recent than 1900", HttpStatus.BAD_REQUEST);
+        }
 
-		barcodeService.createBarcode(antiqueBook.getBarcode(), antiqueBook.getClass().getSimpleName());
-		writeAntiqueBooks(antiqueRepo);
+        antiqueBook.setPricePerUnit(antiqueBook.getPricePerUnit().setScale(2, RoundingMode.HALF_EVEN));
+        antiqueRepo.put(antiqueBook.getBarcode(), antiqueBook);
 
-		return ResponseEntity.ok().build();
-	}
+        barcodeService.createBarcode(antiqueBook.getBarcode(), antiqueBook.getClass().getSimpleName());
+        writeAntiqueBooks(antiqueRepo);
 
-	@Override
-	public Collection<AntiqueBook> getAntiqueBooks() {
-		return retrieveAntiqueBooks().values();
-	}
 
-	@Override
-	public AntiqueBook getAntiqueBookByBarcode(String barcode) {
-		return retrieveAntiqueBooks().get(barcode);
-	}
+        return ResponseEntity.ok().build();
+    }
 
-	@Override
-	public ResponseEntity<Object> updateAntiqueBook(String barcode, AntiqueBook antiqueBook) {
-		final Map<String, AntiqueBook> antiqueRepo = retrieveAntiqueBooks();
+    @Override
+    public Collection<Book> getBooks() {
+        final List<Book> list = new ArrayList<>();
 
-		if (antiqueRepo.get(barcode) == null) {
-			return ResponseEntity.badRequest().build();
-		} else if (getYearFromDate(antiqueBook.getReleaseYear()) > RELEASE_YEAR_LIMIT) {
-			return new ResponseEntity<>("No more recent than 1900", HttpStatus.BAD_REQUEST);
-		}
+        for (final AntiqueBook src : retrieveAntiqueBooks().values()) {
+            list.add(src);
+        }
 
-		antiqueBook.setPricePerUnit(antiqueBook.getPricePerUnit().setScale(2, RoundingMode.HALF_EVEN));
+        return list;
+    }
 
-		antiqueBook.setBarcode(barcode);
-		antiqueRepo.replace(barcode, antiqueBook);
-		writeAntiqueBooks(antiqueRepo);
+    @Override
+    public AntiqueBook getByBarcode(String barcode) {
+        return retrieveAntiqueBooks().get(barcode);
+    }
 
-		return ResponseEntity.ok().build();
-	}
+    @Override
+    public ResponseEntity<Object> updateBook(String barcode, Book book) {
+        AntiqueBook antiqueBook = (AntiqueBook) book;
+        final Map<String, AntiqueBook> antiqueRepo = retrieveAntiqueBooks();
 
-	@Override
-	public ResponseEntity<Void> deleteAntiqueBook(String barcode) {
-		final Map<String, AntiqueBook> antiqueRepo = retrieveAntiqueBooks();
+        Optional<Barcode> barcodeOptional = Optional.ofNullable(barcodeService.getBarcode(book.getBarcode()));
 
-		if (antiqueRepo.get(barcode) == null) {
-			return ResponseEntity.badRequest().build();
-		}
+        if (barcodeOptional.isEmpty()) {
+            return ResponseEntity.badRequest().build();
+        } else if (getYearFromDate(antiqueBook.getReleaseYear()) > RELEASE_YEAR_LIMIT) {
+            return new ResponseEntity<>("No more recent than 1900", HttpStatus.BAD_REQUEST);
+        }
 
-		antiqueRepo.remove(barcode);
-		barcodeService.deleteBarcode(barcode);
-		writeAntiqueBooks(antiqueRepo);
+        antiqueBook.setPricePerUnit(antiqueBook.getPricePerUnit().setScale(2, RoundingMode.HALF_EVEN));
 
-		return ResponseEntity.ok().build();
-	}
+        antiqueBook.setBarcode(barcode);
+        antiqueRepo.replace(barcode, antiqueBook);
+        writeAntiqueBooks(antiqueRepo);
 
-	@Override
-	public ResponseEntity<BigDecimal> calculatePrice(String barcode) {
-		AntiqueBook antiqueBook = getAntiqueBookByBarcode(barcode);
+        return ResponseEntity.ok().build();
+    }
 
-		if (antiqueBook == null) {
-			return ResponseEntity.badRequest().build();
-		}
+    @Override
+    public ResponseEntity<Void> deleteBook(String barcode) {
+        final Map<String, AntiqueBook> antiqueRepo = retrieveAntiqueBooks();
 
-		BigDecimal unitPrice = antiqueBook.getPricePerUnit();
-		int quantity = antiqueBook.getQuantity();
-		int releaseYear = getYearFromDate(antiqueBook.getReleaseYear());
-		int currentYear = getYearFromDate(new Date());
+        Optional<Barcode> barcodeOptional = Optional.ofNullable(barcodeService.getBarcode(barcode));
 
-		// Total Price = Quantity * Price * (Current Year – Release Year) / 10
-		BigDecimal totalPrice = unitPrice.multiply(new BigDecimal(quantity))
-				.multiply(new BigDecimal(currentYear - releaseYear)).divide(new BigDecimal(10));
+        if (barcodeOptional.isEmpty()) {
+            return ResponseEntity.badRequest().build();
+        }
 
-		return ResponseEntity.ok(totalPrice);
-	}
+        antiqueRepo.remove(barcode);
+        barcodeService.deleteBarcode(barcode);
+        writeAntiqueBooks(antiqueRepo);
 
-	private int getYearFromDate(Date date) {
-		Calendar calendar = Calendar.getInstance();
-		calendar.setTime(date);
-		int year = calendar.get(Calendar.YEAR);
-		return year;
-	}
+        return ResponseEntity.ok().build();
+    }
 
-	// Retrieve from csv
-	private Map<String, AntiqueBook> retrieveAntiqueBooks() {
-		csvReader = new CsvReader();
-		Map<String, AntiqueBook> antiqueBookRepo = new HashMap<>();
-		try {
-			antiqueBookRepo = csvReader.readAntiqueBooksCsvFile();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-		return antiqueBookRepo;
-	}
+    @Override
+    public ResponseEntity<BigDecimal> calculatePrice(String barcode) {
+        Optional<AntiqueBook> antiqueBookOptional = Optional.ofNullable(getByBarcode(barcode));
 
-	// Write to csv
-	private void writeAntiqueBooks(Map<String, AntiqueBook> booksToSave) {
-		csvWriter = new CsvWriter();
-		try {
-			csvWriter.writeToCsvAntiqueBooks(booksToSave);
-		} catch (CsvDataTypeMismatchException e) {
-			e.printStackTrace();
-		} catch (CsvRequiredFieldEmptyException e) {
-			e.printStackTrace();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-	}
+        if (antiqueBookOptional.isEmpty()) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        BigDecimal unitPrice = antiqueBookOptional.get().getPricePerUnit();
+        int quantity = antiqueBookOptional.get().getQuantity();
+        int releaseYear = getYearFromDate(antiqueBookOptional.get().getReleaseYear());
+        int currentYear = getYearFromDate(new Date());
+
+        // Total Price = Quantity * Price * (Current Year – Release Year) / 10
+        BigDecimal totalPrice = unitPrice.multiply(new BigDecimal(quantity))
+                .multiply(new BigDecimal(currentYear - releaseYear)).divide(new BigDecimal(10));
+
+        return ResponseEntity.ok(totalPrice);
+    }
+
+    private int getYearFromDate(Date date) {
+        Calendar calendar = Calendar.getInstance();
+        calendar.setTime(date);
+        int year = calendar.get(Calendar.YEAR);
+        return year;
+    }
+
+    // Retrieve from csv
+    private Map<String, AntiqueBook> retrieveAntiqueBooks() {
+        csvReader = new CsvReader();
+        Map<String, AntiqueBook> antiqueBookRepo = new HashMap<>();
+        try {
+            antiqueBookRepo = csvReader.readAntiqueBooksCsvFile();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return antiqueBookRepo;
+    }
+
+    // Write to csv
+    private void writeAntiqueBooks(Map<String, AntiqueBook> booksToSave) {
+        csvWriter = new CsvWriter();
+        try {
+            csvWriter.writeToCsvAntiqueBooks(booksToSave);
+        } catch (CsvDataTypeMismatchException e) {
+            e.printStackTrace();
+        } catch (CsvRequiredFieldEmptyException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
 
 }

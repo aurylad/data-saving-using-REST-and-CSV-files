@@ -3,132 +3,132 @@ package com.homework.service;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
+import com.homework.dao.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
-import com.homework.dao.Book;
-import com.homework.dao.CsvReader;
-import com.homework.dao.CsvWriter;
 import com.opencsv.exceptions.CsvDataTypeMismatchException;
 import com.opencsv.exceptions.CsvRequiredFieldEmptyException;
 
 @Service
-public class BookServiceImpl implements BookService {
+public class BookServiceImpl implements BooksService {
 
-	private CsvWriter csvWriter;
-	private CsvReader csvReader;
+    private CsvWriter csvWriter;
+    private CsvReader csvReader;
 
-	@Autowired
-	BarcodeService barcodeService;
+    @Autowired
+    BarcodeService barcodeService;
 
-	@Override
-	public ResponseEntity<Object> createBook(Book book) {
-		final Map<String, Book> bookRepo = retrieveBooks();
+    @Override
+    public ResponseEntity<Object> createBook(Book book) {
+        final Map<String, Book> bookRepo = retrieveBooks();
 
-		if (barcodeService.ifBarcodeExist(book.getBarcode())) {
-			return new ResponseEntity<>("The record already exists", HttpStatus.CONFLICT);
-		} else if (book.getBarcode().trim().isEmpty()) {
-			return new ResponseEntity<>("The barcode cannot be empty", HttpStatus.BAD_REQUEST);
-		}
+        Optional<Barcode> barcodeOptional = Optional.ofNullable(barcodeService.getBarcode(book.getBarcode()));
 
-		book.setPricePerUnit(book.getPricePerUnit().setScale(2, RoundingMode.HALF_EVEN));
-		bookRepo.put(book.getBarcode(), book);
+        if (barcodeOptional.isPresent()) {
+            return new ResponseEntity<>("The record already exists", HttpStatus.CONFLICT);
+        } else if (book.getBarcode().trim().isEmpty()) {
+            return new ResponseEntity<>("The barcode cannot be empty", HttpStatus.BAD_REQUEST);
+        }
 
-		barcodeService.createBarcode(book.getBarcode(), book.getClass().getSimpleName());
-		writeBooks(bookRepo);
+        book.setPricePerUnit(book.getPricePerUnit().setScale(2, RoundingMode.HALF_EVEN));
+        bookRepo.put(book.getBarcode(), book);
 
-		return ResponseEntity.ok().build();
-	}
+        barcodeService.createBarcode(book.getBarcode(), book.getClass().getSimpleName());
+        writeBooks(bookRepo);
 
-	@Override
-	public Collection<Book> getBooks() {
-		return retrieveBooks().values();
-	}
+        return ResponseEntity.ok().build();
+    }
 
-	@Override
-	public Book getBookByBarcode(String barcode) {
-		return retrieveBooks().get(barcode);
-	}
+    @Override
+    public Collection<Book> getBooks() {
+        return retrieveBooks().values();
+    }
 
-	@Override
-	public ResponseEntity<Void> updateBook(String barcode, Book book) {
-		final Map<String, Book> bookRepo = retrieveBooks();
+    @Override
+    public Book getByBarcode(String barcode) {
+        return retrieveBooks().get(barcode);
+    }
 
-		if (bookRepo.get(barcode) == null) {
-			return ResponseEntity.badRequest().build();
-		}
+    @Override
+    public ResponseEntity<Object> updateBook(String barcode, Book book) {
+        final Map<String, Book> bookRepo = retrieveBooks();
 
-		book.setPricePerUnit(book.getPricePerUnit().setScale(2, RoundingMode.HALF_EVEN));
+        if (bookRepo.get(barcode) == null) {
+            return ResponseEntity.badRequest().build();
+        }
 
-		book.setBarcode(barcode);
-		bookRepo.replace(barcode, book);
-		writeBooks(bookRepo);
+        book.setPricePerUnit(book.getPricePerUnit().setScale(2, RoundingMode.HALF_EVEN));
 
-		return ResponseEntity.ok().build();
-	}
+        book.setBarcode(barcode);
+        bookRepo.replace(barcode, book);
+        writeBooks(bookRepo);
 
-	@Override
-	public ResponseEntity<Void> deleteBook(String barcode) {
-		final Map<String, Book> bookRepo = retrieveBooks();
+        return ResponseEntity.ok().build();
+    }
 
-		if (bookRepo.get(barcode) == null) {
-			return ResponseEntity.badRequest().build();
-		}
+    @Override
+    public ResponseEntity<Void> deleteBook(String barcode) {
+        final Map<String, Book> bookRepo = retrieveBooks();
 
-		bookRepo.remove(barcode);
-		barcodeService.deleteBarcode(barcode);
-		writeBooks(bookRepo);
+        if (bookRepo.get(barcode) == null) {
+            return ResponseEntity.badRequest().build();
+        }
 
-		return ResponseEntity.ok().build();
-	}
+        bookRepo.remove(barcode);
+        barcodeService.deleteBarcode(barcode);
+        writeBooks(bookRepo);
 
-	@Override
-	public ResponseEntity<BigDecimal> calculatePrice(String barcode) {
-		Book book = getBookByBarcode(barcode);
+        return ResponseEntity.ok().build();
+    }
 
-		if (book == null) {
-			return ResponseEntity.badRequest().build();
-		}
+    @Override
+    public ResponseEntity<BigDecimal> calculatePrice(String barcode) {
+//        Book book = getAntiqueBookByBarcode(barcode);
+		Optional<Book> bookOptional = Optional.ofNullable(getByBarcode(barcode));
 
-		BigDecimal unitPrice = book.getPricePerUnit();
-		int quantity = book.getQuantity();
+        if (bookOptional.isEmpty()) {
+            return ResponseEntity.badRequest().build();
+        }
 
-		// Total price = Quantity * Price
-		BigDecimal totalPrice = unitPrice.multiply(new BigDecimal(quantity));
+        BigDecimal unitPrice = bookOptional.get().getPricePerUnit();
+        int quantity = bookOptional.get().getQuantity();
 
-		return ResponseEntity.ok(totalPrice);
-	}
+        // Total price = Quantity * Price
+        BigDecimal totalPrice = unitPrice.multiply(new BigDecimal(quantity));
 
-	// Retrieve from csv
-	private Map<String, Book> retrieveBooks() {
-		csvReader = new CsvReader();
-		Map<String, Book> bookRepo = new HashMap<>();
-		try {
-			bookRepo = csvReader.readBooksCsvFile();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-		return bookRepo;
-	}
+        return ResponseEntity.ok(totalPrice);
+    }
 
-	// Write to csv
-	private void writeBooks(Map<String, Book> booksToSave) {
-		csvWriter = new CsvWriter();
-		try {
-			csvWriter.writeToCsv(booksToSave);
-		} catch (CsvDataTypeMismatchException e) {
-			e.printStackTrace();
-		} catch (CsvRequiredFieldEmptyException e) {
-			e.printStackTrace();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-	}
+    // Retrieve from csv
+    private Map<String, Book> retrieveBooks() {
+        csvReader = new CsvReader();
+        Map<String, Book> bookRepo = new HashMap<>();
+        try {
+            bookRepo = csvReader.readBooksCsvFile();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return bookRepo;
+    }
+
+    // Write to csv
+    private void writeBooks(Map<String, Book> booksToSave) {
+        csvWriter = new CsvWriter();
+        try {
+            csvWriter.writeToCsv(booksToSave);
+        } catch (CsvDataTypeMismatchException e) {
+            e.printStackTrace();
+        } catch (CsvRequiredFieldEmptyException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
 
 }

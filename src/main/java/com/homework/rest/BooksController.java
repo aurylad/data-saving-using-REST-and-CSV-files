@@ -2,20 +2,14 @@ package com.homework.rest;
 
 import static com.homework.rest.RestUtils.toResponseEntity;
 
-import java.util.Collection;
-
-import javax.validation.Valid;
-
+import com.homework.dao.Book;
+import com.homework.service.BooksService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestMethod;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
-import com.homework.dao.Book;
-import com.homework.service.BookService;
+import javax.validation.Valid;
+import java.util.Collection;
 
 /*
  * Implemented GET ALL, CREATE, UPDATE and DELETE REST calls.
@@ -28,26 +22,26 @@ import com.homework.service.BookService;
 public class BooksController {
 
 	@Autowired
-	BookService bookService;
-	
+    BooksService bookServiceImpl;
+
 	@RequestMapping(value = "/book", method = RequestMethod.POST)
-	public ResponseEntity<Object> createBook(@Valid @RequestBody Book book) {	
-		return bookService.createBook(book);
+	public ResponseEntity<Object> createBook(@Valid @RequestBody Book book) {
+		return bookServiceImpl.createBook(book);
 	}
-	
+
 	@RequestMapping(value = "/books", method = RequestMethod.GET)
 	public ResponseEntity<Collection<Book>> getBooks() {
-		return  toResponseEntity(bookService.getBooks());
+		return  toResponseEntity(bookServiceImpl.getBooks());
 	}
 
 	@RequestMapping(value = "/book/{barcode}", method = RequestMethod.PUT)
-	public ResponseEntity<Void> updateBook(@Valid @PathVariable("barcode") String barcode, @RequestBody Book book) {
-		return bookService.updateBook(barcode, book);
+	public ResponseEntity<Object> updateBook(@Valid @PathVariable("barcode") String barcode, @RequestBody Book book) {
+		return bookServiceImpl.updateBook(barcode, book);
 	}
-	
+
 	@RequestMapping(value = "/book/{barcode}", method = RequestMethod.DELETE)
 	public ResponseEntity<Void> deleteBook(@PathVariable("barcode") String barcode) {
-		return bookService.deleteBook(barcode);
+		return bookServiceImpl.deleteBook(barcode);
 	}
 	
 }

@@ -2,20 +2,15 @@ package com.homework.rest;
 
 import static com.homework.rest.RestUtils.toResponseEntity;
 
-import java.util.Collection;
-
-import javax.validation.Valid;
-
+import com.homework.dao.Book;
+import com.homework.dao.Journal;
+import com.homework.service.BooksService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestMethod;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
-import com.homework.dao.Journal;
-import com.homework.service.JournalService;
+import javax.validation.Valid;
+import java.util.Collection;
 
 /*
  * Implemented GET ALL, CREATE, UPDATE and DELETE REST calls.
@@ -28,26 +23,26 @@ import com.homework.service.JournalService;
 public class JournalsController {
 
 	@Autowired
-	JournalService journalService;
-	
+    BooksService journalServiceImpl;
+
 	@RequestMapping(value = "/journal", method = RequestMethod.POST)
 	public ResponseEntity<Object> createJournal(@Valid @RequestBody Journal journal) {
-		return journalService.createJournal(journal);
+		return journalServiceImpl.createBook(journal);
 	}
-	
+
 	@RequestMapping(value = "/journals", method = RequestMethod.GET)
-	public ResponseEntity<Collection<Journal>> getJournals() {
-		return  toResponseEntity(journalService.getJournals());
+	public ResponseEntity<Collection<Book>> getJournals() {
+		return  toResponseEntity(journalServiceImpl.getBooks());
 	}
 
 	@RequestMapping(value = "/journal/{barcode}", method = RequestMethod.PUT)
-	public ResponseEntity<Void> updateJournal(@PathVariable("barcode") String barcode, @Valid @RequestBody Journal journal) {
-		return journalService.updateJournal(barcode, journal);
+	public ResponseEntity<Object> updateJournal(@PathVariable("barcode") String barcode, @Valid @RequestBody Journal journal) {
+		return journalServiceImpl.updateBook(barcode, journal);
 	}
-	
+
 	@RequestMapping(value = "/journal/{barcode}", method = RequestMethod.DELETE)
 	public ResponseEntity<Void> deleteJournal(@PathVariable("barcode") String barcode) {
-		return journalService.deleteJournal(barcode);
+		return journalServiceImpl.deleteBook(barcode);
 	}
 	
 }
