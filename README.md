@@ -1,4 +1,4 @@
-# homework
+# Application
 
 **NOTE**. This project uses lombok library. To feel comfortable in your IDE you should install it.
 There is instructions: https://projectlombok.org/setup/overview
